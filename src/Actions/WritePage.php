@@ -6,15 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Shazzoo\ContentCatalogApi\Support\BlockMapper;
 use Shazzoo\ContentStudioCore\Models\Page;
-use Shazzoo\ContentStudioCore\Support\Blocks\BlockCatalog;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class WritePage
 {
-    public function __construct(private readonly BlockCatalog $blocks) {}
+    public function __construct(private readonly BlockMapper $blocks) {}
 
     /** @param array<string, mixed> $payload */
     public function create(array $payload): Page
@@ -60,43 +59,10 @@ final class WritePage
         ]);
 
         if (array_key_exists('blocks', $payload)) {
-            $definitions = collect($this->blocks->toArray())->keyBy('type');
-
-            $attributes['content'] = array_map(fn (array $block): array => [
-                'uuid' => filled($block['uuid'] ?? null) ? $block['uuid'] : (string) Str::uuid(),
-                'type' => $block['type'],
-                'data' => $this->withDefaults($block['fields'], $definitions->get($block['type'])['fields'] ?? []),
-            ], $payload['blocks']);
+            $attributes['content'] = $this->blocks->toContent($payload['blocks']);
         }
 
         return $attributes;
-    }
-
-    /**
-     * @param  array<string, mixed>  $values
-     * @param  array<int, array<string, mixed>>  $definitions
-     * @return array<string, mixed>
-     */
-    private function withDefaults(array $values, array $definitions): array
-    {
-        foreach ($definitions as $field) {
-            $name = $field['name'];
-
-            if (! array_key_exists($name, $values) && array_key_exists('default', $field)) {
-                $values[$name] = $field['default'];
-            }
-
-            if (($field['type'] ?? null) !== 'repeater' || ! is_array($values[$name] ?? null)) {
-                continue;
-            }
-
-            $values[$name] = array_map(
-                fn (array $item): array => $this->withDefaults($item, $field['schema'] ?? []),
-                $values[$name],
-            );
-        }
-
-        return $values;
     }
 
     private function actorId(): int

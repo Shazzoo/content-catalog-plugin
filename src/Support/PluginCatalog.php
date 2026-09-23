@@ -2,7 +2,9 @@
 
 namespace Shazzoo\ContentCatalogApi\Support;
 
-use Illuminate\Support\Facades\Schema;
+use Shazzoo\ContentCatalogApi\Support\Resources\ResourceDefinition;
+use Shazzoo\ContentCatalogApi\Support\Resources\ResourceRegistry;
+use Shazzoo\ContentCatalogApi\Support\Resources\ResourceTransformer;
 use Shazzoo\ContentStudioCore\Support\Blocks\BlockCatalog;
 use Shazzoo\ContentStudioCore\Support\Plugins\PluginManager;
 
@@ -11,6 +13,8 @@ final class PluginCatalog
     public function __construct(
         private readonly PluginManager $plugins,
         private readonly BlockCatalog $blocks,
+        private readonly ResourceRegistry $resources,
+        private readonly ResourceTransformer $transformer,
     ) {}
 
     /** @return array<int, array<string, mixed>> */
@@ -45,7 +49,7 @@ final class PluginCatalog
             ->map(fn (string $value): string => (str_ends_with($value, '-plugin') ? substr($value, 0, -7) : $value).'.')
             ->unique();
 
-        $payload = [
+        return [
             'key' => $key,
             'slug' => $slug,
             'name' => $plugin['name'] ?? str($slug)->headline()->toString(),
@@ -56,96 +60,25 @@ final class PluginCatalog
                 ->filter(fn (array $block): bool => $prefixes->contains(fn (string $prefix): bool => str_starts_with((string) ($block['type'] ?? ''), $prefix)))
                 ->values()
                 ->all(),
-            'resources' => [],
-        ];
-
-        if ($key === 'shazzoo/contact-form') {
-            $payload['resources'][] = $this->contactForms();
-        }
-
-        if ($key === 'shazzoo/employees') {
-            $payload['resources'][] = $this->employees();
-        }
-
-        return $payload;
-    }
-
-    /** @return array<string, mixed> */
-    private function contactForms(): array
-    {
-        $modelClass = 'Shazzoo\\ContactForm\\Models\\ContactForm';
-        $items = [];
-
-        if (class_exists($modelClass) && Schema::hasTable('contact_forms')) {
-            $items = $modelClass::query()
-                ->select(['id', 'name', 'key', 'subject_prefix', 'button_label', 'success_message', 'privacy_note', 'fields'])
-                ->orderBy('name')
-                ->get()
-                ->map(fn ($form): array => [
-                    'id' => $form->id,
-                    'name' => $form->name,
-                    'key' => $form->key,
-                    'subject_prefix' => $form->subject_prefix,
-                    'button_label' => $form->button_label,
-                    'success_message' => $form->success_message,
-                    'privacy_note' => $form->privacy_note,
-                    'fields' => $form->fields ?? [],
-                ])
-                ->all();
-        }
-
-        return [
-            'key' => 'contact_forms',
-            'label' => 'Contact forms',
-            'fields' => [
-                ['name' => 'name', 'type' => 'text', 'required' => true],
-                ['name' => 'key', 'type' => 'text', 'required' => true],
-                ['name' => 'subject_prefix', 'type' => 'text', 'required' => false],
-                ['name' => 'button_label', 'type' => 'text', 'required' => false],
-                ['name' => 'success_message', 'type' => 'textarea', 'required' => false],
-                ['name' => 'privacy_note', 'type' => 'textarea', 'required' => false],
-                ['name' => 'fields', 'type' => 'repeater', 'required' => true],
-            ],
-            'items_count' => count($items),
-            'items' => $items,
+            'resources' => array_map(
+                fn (ResourceDefinition $resource): array => $this->resource($slug, $resource),
+                $this->resources->forPlugin($key, $plugin),
+            ),
         ];
     }
 
     /** @return array<string, mixed> */
-    private function employees(): array
+    private function resource(string $pluginSlug, ResourceDefinition $resource): array
     {
-        $modelClass = 'Shazzoo\\Employees\\Models\\Employee';
-        $items = [];
-
-        if (class_exists($modelClass) && Schema::hasTable('content_studio_employees')) {
-            $items = $modelClass::query()
-                ->select(['id', 'image_id', 'name', 'role', 'skills'])
-                ->with('image')
-                ->orderBy('name')
-                ->get()
-                ->map(fn ($employee): array => [
-                    'id' => $employee->id,
-                    'name' => $employee->name,
-                    'role' => $employee->role,
-                    'skills' => $employee->skills ?? [],
-                    'image' => $employee->image ? [
-                        'id' => $employee->image->getKey(),
-                        'url' => $employee->image->url,
-                        'alt' => $employee->image->alt,
-                    ] : null,
-                ])
-                ->all();
-        }
+        $items = $resource->hasTable()
+            ? $this->transformer->collection($resource, $resource->query()->get())
+            : [];
 
         return [
-            'key' => 'employees',
-            'label' => 'Employees',
-            'fields' => [
-                ['name' => 'image_id', 'type' => 'media', 'required' => true],
-                ['name' => 'name', 'type' => 'text', 'required' => true],
-                ['name' => 'role', 'type' => 'text', 'required' => true],
-                ['name' => 'skills', 'type' => 'tags', 'required' => true],
-            ],
+            'key' => $resource->key,
+            'label' => $resource->label,
+            'endpoint' => "/api/content-catalog/plugins/{$pluginSlug}/resources/{$resource->key}",
+            'fields' => $resource->publicFields(),
             'items_count' => count($items),
             'items' => $items,
         ];

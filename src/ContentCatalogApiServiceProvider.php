@@ -38,6 +38,16 @@ final class ContentCatalogApiServiceProvider extends ServiceProvider
                 Route::patch('/pages/{page}', [ContentCatalogController::class, 'update'])
                     ->whereNumber('page')
                     ->name('pages.update');
+
+                Route::prefix('/plugins/{plugin}/resources/{resource}')
+                    ->name('resources.')
+                    ->group(function (): void {
+                        Route::get('/', [ContentCatalogController::class, 'resourceIndex'])->name('index');
+                        Route::post('/', [ContentCatalogController::class, 'resourceStore'])->name('store');
+                        Route::get('/{id}', [ContentCatalogController::class, 'resourceShow'])->name('show');
+                        Route::put('/{id}', [ContentCatalogController::class, 'resourceReplace'])->name('replace');
+                        Route::patch('/{id}', [ContentCatalogController::class, 'resourceUpdate'])->name('update');
+                    });
             });
     }
 }
