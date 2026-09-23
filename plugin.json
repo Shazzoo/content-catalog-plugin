@@ -1,0 +1,9 @@
+{
+  "key": "shazzoo/content-catalog-api",
+  "slug": "content-catalog-api",
+  "name": "Content Catalog API",
+  "description": "Provides an authenticated API endpoint with available blocks and current page content.",
+  "author": "Shazzoo",
+  "provider": "Shazzoo\\ContentCatalogApi\\ContentCatalogApiServiceProvider",
+  "class": "Shazzoo\\ContentCatalogApi\\Plugin"
+}

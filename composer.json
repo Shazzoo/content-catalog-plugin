@@ -1,0 +1,26 @@
+{
+  "name": "shazzoo/content-catalog-plugin",
+  "description": "Authenticated API access to Content Studio block definitions and page content.",
+  "type": "content-studio-plugin",
+  "license": "MIT",
+  "require": {
+    "php": "^8.3",
+    "shazzoo/content-studio-core": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Shazzoo\\ContentCatalogApi\\": "src/"
+    }
+  },
+  "extra": {
+    "content-studio": {
+      "key": "shazzoo/content-catalog-api",
+      "slug": "content-catalog-api",
+      "name": "Content Catalog API",
+      "description": "Provides an authenticated API endpoint with available blocks and current page content.",
+      "provider": "Shazzoo\\ContentCatalogApi\\ContentCatalogApiServiceProvider"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
