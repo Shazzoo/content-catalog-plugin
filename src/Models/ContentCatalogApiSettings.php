@@ -34,7 +34,7 @@ final class ContentCatalogApiSettings extends Model
 
     public static function current(): self
     {
-        return static::query()->firstOrCreate(
+        return self::query()->firstOrCreate(
             ['id' => 1],
             ['enabled' => false],
         );

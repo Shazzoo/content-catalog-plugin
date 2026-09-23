@@ -4,139 +4,133 @@ namespace Shazzoo\ContentCatalogApi\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
-use Shazzoo\ContentCatalogApi\Models\ContentCatalogApiSettings;
-use Shazzoo\ContentCatalogApi\Models\ContentCatalogApiRequestLog;
+use Shazzoo\ContentCatalogApi\Actions\WritePage;
+use Shazzoo\ContentCatalogApi\Http\Requests\StorePageRequest;
+use Shazzoo\ContentCatalogApi\Http\Requests\UpdatePageRequest;
+use Shazzoo\ContentCatalogApi\Support\ContentCatalogApiGuard;
+use Shazzoo\ContentCatalogApi\Support\ContentCatalogRequestLogger;
+use Shazzoo\ContentCatalogApi\Support\PageTransformer;
+use Shazzoo\ContentCatalogApi\Support\PluginCatalog;
 use Shazzoo\ContentStudioCore\Models\Page;
 use Shazzoo\ContentStudioCore\Support\Blocks\BlockCatalog;
 
 final class ContentCatalogController
 {
+    public function __construct(
+        private readonly ContentCatalogApiGuard $guard,
+        private readonly ContentCatalogRequestLogger $logger,
+        private readonly BlockCatalog $blocks,
+        private readonly PluginCatalog $plugins,
+        private readonly PageTransformer $pages,
+        private readonly WritePage $writer,
+    ) {}
+
     public function handle(?string $locale, ?string $slug): JsonResponse
     {
-        abort_unless(trim((string) $slug, '/') === 'api/content-catalog', 404);
+        $path = trim((string) $slug, '/');
+        abort_unless(str_starts_with($path, 'api/content-catalog'), 404);
 
         /** @var Request $request */
         $request = request();
+        $this->guard->authorize($request);
 
-        $this->throttle($request);
+        return match (true) {
+            $path === 'api/content-catalog' => $this->index($request),
+            $path === 'api/content-catalog/blocks' => $this->blocks($request),
+            $path === 'api/content-catalog/pages' => $this->pages($request),
+            preg_match('#^api/content-catalog/pages/(\d+)$#', $path, $matches) === 1 => $this->showPage($request, (int) $matches[1]),
+            $path === 'api/content-catalog/plugins' => $this->plugins($request),
+            preg_match('#^api/content-catalog/plugins/([^/]+)$#', $path, $matches) === 1 => $this->showPlugin($request, $matches[1]),
+            default => abort(404),
+        };
+    }
 
-        $settings = ContentCatalogApiSettings::current();
-
-        abort_unless($settings->isAvailable(), 404);
-        abort_unless($settings->hasValidKey($request->bearerToken()), 401);
-
-        ContentCatalogApiRequestLog::query()->create([
-            'operation' => 'content-catalog.read',
-            'purpose' => filled($request->query('purpose')) ? str($request->query('purpose'))->limit(255)->toString() : null,
-            'api_key_last_four' => $settings->api_key_last_four,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'request_path' => $request->path(),
-            'requested_at' => now(),
-        ]);
-
-        /** @var BlockCatalog $blockCatalog */
-        $blockCatalog = app(BlockCatalog::class);
-
-        return response()->json([
-            'data' => [
-                'blocks' => $blockCatalog->toArray(),
-                'pages' => Page::query()
-                    ->select([
-                        'id',
-                        'title',
-                        'slug',
-                        'locale',
-                        'is_active',
-                        'template_key',
-                        'updated_at',
-                        'content',
-                    ])
-                    ->orderBy('id')
-                    ->get()
-                    ->map(fn (Page $page): array => $this->page($page))
-                    ->all(),
-            ],
+    public function index(Request $request): JsonResponse
+    {
+        return $this->readResponse($request, [
+            'blocks' => $this->blocks->toArray(),
+            'pages' => $this->allPages(),
+            'plugins' => $this->plugins->all(),
         ]);
     }
 
-    private function throttle(Request $request): void
+    public function blocks(Request $request): JsonResponse
     {
-        $key = 'content-catalog-api:'.$request->ip();
-
-        abort_if(RateLimiter::tooManyAttempts($key, 60), 429);
-
-        RateLimiter::hit($key, 60);
+        return $this->readResponse($request, $this->blocks->toArray());
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function page(Page $page): array
+    public function pages(Request $request): JsonResponse
     {
-        return [
-            'id' => $page->id,
-            'title' => $page->title,
-            'slug' => $page->slug,
-            'locale' => $page->locale,
-            'is_active' => $page->is_active,
-            'template_key' => $page->template_key,
-            'updated_at' => $page->updated_at?->toISOString(),
-            'blocks' => array_map(
-                fn (array $block, int $position): array => $this->block($block, $position),
-                array_values($page->content ?? []),
-                array_keys(array_values($page->content ?? [])),
-            ),
-        ];
+        return $this->readResponse($request, $this->allPages());
     }
 
-    /**
-     * @param  array<string, mixed>  $block
-     * @return array<string, mixed>
-     */
-    private function block(array $block, int $position): array
+    public function showPage(Request $request, int $page): JsonResponse
     {
-        $payload = [
-            'position' => $position,
-            'type' => $block['type'] ?? null,
-            'fields' => $this->filledValues($block['data'] ?? []),
-        ];
-
-        if (filled($block['uuid'] ?? null)) {
-            $payload['uuid'] = $block['uuid'];
-        }
-
-        return $payload;
+        return $this->readResponse(
+            $request,
+            $this->pages->transform(Page::query()->findOrFail($page)),
+        );
     }
 
-    /**
-     * @param  array<array-key, mixed>  $values
-     * @return array<array-key, mixed>
-     */
-    private function filledValues(array $values): array
+    public function plugins(Request $request): JsonResponse
     {
-        $filledValues = [];
-
-        foreach ($values as $key => $value) {
-            if (is_array($value)) {
-                $value = $this->filledValues($value);
-            }
-
-            if (! $this->isFilled($value)) {
-                continue;
-            }
-
-            $filledValues[$key] = $value;
-        }
-
-        return array_is_list($values) ? array_values($filledValues) : $filledValues;
+        return $this->readResponse($request, $this->plugins->all(), 'content-catalog.plugins.read');
     }
 
-    private function isFilled(mixed $value): bool
+    public function showPlugin(Request $request, string $plugin): JsonResponse
     {
-        return $value !== null
-            && $value !== []
-            && (! is_string($value) || trim($value) !== '');
+        $payload = $this->plugins->find($plugin);
+        abort_if($payload === null, 404);
+
+        return $this->readResponse($request, $payload, 'content-catalog.plugins.read');
+    }
+
+    public function store(StorePageRequest $request): JsonResponse
+    {
+        $page = $this->writer->create($request->validated());
+        $this->logger->log($request, 'content-catalog.page.create');
+
+        return response()->json(['data' => $this->pages->transform($page)], 201);
+    }
+
+    public function replace(UpdatePageRequest $request, int $page): JsonResponse
+    {
+        return $this->write($request, $page, 'content-catalog.page.replace');
+    }
+
+    public function update(UpdatePageRequest $request, int $page): JsonResponse
+    {
+        return $this->write($request, $page, 'content-catalog.page.update');
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function allPages(): array
+    {
+        return Page::query()
+            ->select([
+                'id', 'title', 'slug', 'translation_key', 'locale', 'is_active',
+                'template_key', 'template_settings', 'seo_title', 'seo_description',
+                'seo', 'header', 'updated_at', 'content',
+            ])
+            ->orderBy('id')
+            ->get()
+            ->map(fn (Page $page): array => $this->pages->transform($page))
+            ->all();
+    }
+
+    private function write(UpdatePageRequest $request, int $pageId, string $operation): JsonResponse
+    {
+        $page = $this->writer->update($pageId, $request->validated());
+        $this->logger->log($request, $operation);
+
+        return response()->json(['data' => $this->pages->transform($page)]);
+    }
+
+    private function readResponse(Request $request, array $data, string $operation = 'content-catalog.read'): JsonResponse
+    {
+        $this->logger->log($request, $operation);
+
+        return response()->json(['data' => $data])
+            ->header('Cache-Control', 'no-store, private');
     }
 }

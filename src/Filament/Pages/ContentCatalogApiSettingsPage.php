@@ -53,7 +53,7 @@ final class ContentCatalogApiSettingsPage extends Page implements HasForms, HasT
 
     public static function shouldRegisterNavigation(): bool
     {
-        return static::canAccess();
+        return self::canAccess();
     }
 
     public function form(Schema $schema): Schema
