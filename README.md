@@ -301,8 +301,12 @@ A plugin exposes resources by listing them under `api_resources` in its
 
 Each field has a `name` (the model attribute) and a `type`. Optional keys:
 `required`, `default`, `unique` (unique in the model's table), `options` and
-`multiple` for selects, `max` for text, and `template_from` for template
-settings.
+`multiple` for selects, `max` for text, `template_from` for template settings,
+and for `json` fields:
+
+- `merge`: a write changes only the keys it sends and keeps the others. Send a
+  key with `null` to empty it
+- `hidden_keys`: keys the API never returns and refuses to write (`422`)
 
 | Type | Accepts |
 | --- | --- |
@@ -337,7 +341,17 @@ package:
 | --- | --- | --- |
 | `shazzoo/contact-form` | `contact_forms` | `name`, `key` (unique), `subject_prefix`, `button_label`, `success_message`, `privacy_note`, `fields` |
 | `shazzoo/employees` | `employees` | `image_id` (media), `name`, `role`, `skills` (tags) |
+| `shazzoo/content-catalog-api` | `navigations` | `title`, `slug` (unique), `translation_key`, `locale`, `items` (json) |
+| `shazzoo/content-catalog-api` | `settings` | `settings` (json, merged, script fields hidden). Edit only |
 | `shazzoo/strategy-engine-plugin` | `settings` | `index_template_key`, `index_template_settings`, `article_template_key`, `article_template_settings`. Edit only (`creatable: false`) |
+
+Menus and the global settings belong to core; this plugin exposes them under
+its own slug, e.g. `/api/content-catalog/plugins/content-catalog-api/resources/navigations`.
+Menu items and settings such as `global_homepage` refer to page ids, which
+differ between sites: map them when copying content from one site to another.
+The three custom script settings (`custom_head_scripts`,
+`custom_body_start_scripts`, `custom_body_end_scripts`) put raw code on every
+page and can only be changed in the admin.
 
 The recipient of a contact form is deliberately not exposed. Of the Strategy
 Engine settings only the templates are: the overview and article pages use

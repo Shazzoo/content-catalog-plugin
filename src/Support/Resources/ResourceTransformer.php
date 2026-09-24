@@ -57,6 +57,10 @@ final class ResourceTransformer
                 default => $value,
             };
 
+            if ($field['type'] === 'json' && is_array($payload[$name]) && ! empty($field['hidden_keys'])) {
+                $payload[$name] = array_diff_key($payload[$name], array_flip($field['hidden_keys']));
+            }
+
             // image_id => image: {id, url, alt}, next to the id itself.
             if ($field['type'] === 'media' && class_exists(self::MEDIA_MODEL)) {
                 $item = $value !== null ? $media->get($value) : null;

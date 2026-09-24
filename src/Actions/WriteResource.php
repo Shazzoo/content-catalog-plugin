@@ -36,7 +36,19 @@ final class WriteResource
                 throw new ConflictHttpException('The record has changed since it was fetched. Fetch it again before updating.');
             }
 
-            $record->forceFill($this->attributes($definition, $payload, withDefaults: false));
+            $attributes = $this->attributes($definition, $payload, withDefaults: false);
+
+            // Merge fields keep the keys the request does not send.
+            foreach ($definition->fields as $field) {
+                if (($field['merge'] ?? false) && is_array($attributes[$field['name']] ?? null)) {
+                    $attributes[$field['name']] = array_replace(
+                        (array) ($record->getAttribute($field['name']) ?? []),
+                        $attributes[$field['name']],
+                    );
+                }
+            }
+
+            $record->forceFill($attributes);
             $record->save();
 
             return $record->refresh();

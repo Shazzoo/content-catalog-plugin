@@ -94,6 +94,12 @@ final class ResourceWriteRequest extends FormRequest
                     app(BlockValidator::class)->validate($validator, $field['name'], $this->input($field['name']));
                 }
 
+                if ($field['type'] === 'json' && ! empty($field['hidden_keys']) && is_array($this->input($field['name']))) {
+                    foreach (array_intersect(array_keys($this->input($field['name'])), $field['hidden_keys']) as $key) {
+                        $validator->errors()->add("{$field['name']}.{$key}", 'This key cannot be changed through the API.');
+                    }
+                }
+
                 if ($field['type'] === 'template_settings') {
                     $keyField = $field['template_from'] ?? 'template_key';
 

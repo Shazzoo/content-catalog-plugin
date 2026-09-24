@@ -54,6 +54,35 @@ final class BuiltInResources
                     ['name' => 'article_template_settings', 'type' => 'template_settings', 'template_from' => 'article_template_key'],
                 ],
             ]],
+            // Menus and global settings are core models; this plugin exposes
+            // them itself. Page ids in them differ between sites.
+            'shazzoo/content-catalog-api' => [[
+                'key' => 'navigations',
+                'label' => 'Navigations',
+                'model' => 'Shazzoo\\ContentStudioCore\\Models\\Navigation',
+                'fields' => [
+                    ['name' => 'title', 'type' => 'text', 'required' => true],
+                    ['name' => 'slug', 'type' => 'text', 'required' => true, 'unique' => true],
+                    ['name' => 'translation_key', 'type' => 'text'],
+                    ['name' => 'locale', 'type' => 'text', 'required' => true],
+                    ['name' => 'items', 'type' => 'json'],
+                ],
+            ], [
+                'key' => 'settings',
+                'label' => 'Global settings',
+                'model' => 'Shazzoo\\ContentStudioCore\\Models\\Setting',
+                // One row holds all settings; it is edited, never added.
+                'creatable' => false,
+                'fields' => [
+                    // A PATCH changes only the keys it sends. The script
+                    // fields put raw code on every page and stay admin-only.
+                    ['name' => 'settings', 'type' => 'json', 'merge' => true, 'hidden_keys' => [
+                        'custom_head_scripts',
+                        'custom_body_start_scripts',
+                        'custom_body_end_scripts',
+                    ]],
+                ],
+            ]],
             default => [],
         };
     }
