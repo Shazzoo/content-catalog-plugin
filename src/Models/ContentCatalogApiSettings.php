@@ -16,6 +16,8 @@ final class ContentCatalogApiSettings extends Model
         'expires_at',
     ];
 
+    public $incrementing = false;
+
     protected $attributes = [
         'disable_after_enabled' => false,
         'enabled' => false,
@@ -32,12 +34,24 @@ final class ContentCatalogApiSettings extends Model
         ];
     }
 
+    /**
+     * There is one settings row, always with id 1. The id is set here rather
+     * than through firstOrCreate(): it is not fillable, so firstOrCreate()
+     * would leave it out of the insert, which MySQL rejects.
+     */
     public static function current(): self
     {
-        return self::query()->firstOrCreate(
-            ['id' => 1],
-            ['enabled' => false],
-        );
+        $settings = self::query()->find(1);
+
+        if ($settings !== null) {
+            return $settings;
+        }
+
+        $settings = new self(['enabled' => false]);
+        $settings->id = 1;
+        $settings->save();
+
+        return $settings->refresh();
     }
 
     public function isAvailable(): bool
