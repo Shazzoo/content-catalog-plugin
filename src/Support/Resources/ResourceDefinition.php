@@ -16,7 +16,7 @@ final class ResourceDefinition
     /**
      * Field types the API understands.
      */
-    public const FIELD_TYPES = ['text', 'textarea', 'number', 'toggle', 'select', 'tags', 'media', 'repeater', 'blocks', 'json'];
+    public const FIELD_TYPES = ['text', 'textarea', 'number', 'toggle', 'select', 'tags', 'media', 'repeater', 'blocks', 'json', 'template', 'template_settings'];
 
     /**
      * @param  class-string<Model>  $model
@@ -29,6 +29,7 @@ final class ResourceDefinition
         public readonly string $model,
         public readonly array $fields,
         public readonly ?string $orderBy = null,
+        public readonly bool $creatable = true,
     ) {}
 
     /**
@@ -57,6 +58,7 @@ final class ResourceDefinition
             model: $model,
             fields: array_values($fields),
             orderBy: is_string($declaration['order_by'] ?? null) ? $declaration['order_by'] : null,
+            creatable: (bool) ($declaration['creatable'] ?? true),
         );
     }
 

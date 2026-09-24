@@ -28,6 +28,8 @@ final class ContentCatalogApiServiceProvider extends ServiceProvider
                 Route::get('/blocks', [ContentCatalogController::class, 'blocks'])->name('blocks.index');
                 Route::get('/pages', [ContentCatalogController::class, 'pages'])->name('pages.index');
                 Route::get('/pages/{page}', [ContentCatalogController::class, 'showPage'])->whereNumber('page')->name('pages.show');
+                Route::get('/templates', [ContentCatalogController::class, 'templates'])->name('templates.index');
+                Route::get('/templates/{template}', [ContentCatalogController::class, 'showTemplate'])->name('templates.show');
                 Route::get('/plugins', [ContentCatalogController::class, 'plugins'])->name('plugins.index');
                 Route::get('/plugins/{plugin}', [ContentCatalogController::class, 'showPlugin'])->name('plugins.show');
                 Route::post('/pages', [ContentCatalogController::class, 'store'])

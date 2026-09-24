@@ -38,8 +38,10 @@ writes). It ends up in the request log and helps you tell callers apart.
 
 | Method | Path | What it does |
 | --- | --- | --- |
-| `GET` | `/api/content-catalog` | Blocks, pages and plugins in one response |
+| `GET` | `/api/content-catalog` | Blocks, templates, pages and plugins in one response |
 | `GET` | `/api/content-catalog/blocks` | Block catalog: every block type and its fields |
+| `GET` | `/api/content-catalog/templates` | Page templates of the active theme and their settings fields |
+| `GET` | `/api/content-catalog/templates/{key}` | One template |
 | `GET` | `/api/content-catalog/pages` | All pages with their blocks |
 | `GET` | `/api/content-catalog/pages/{id}` | One page |
 | `POST` | `/api/content-catalog/pages` | Create a page |
@@ -78,6 +80,30 @@ Every response wraps its payload in `data`. Lists are not paginated.
 
 Use these definitions to build the `fields` of a block when writing a page or
 a `blocks` field of a resource.
+
+## Templates
+
+`GET /templates` lists the page templates of the active theme. `settings`
+holds the fields of the template's settings, in the same shape as block fields:
+
+```json
+{
+  "data": [
+    {
+      "key": "met-cta",
+      "label": "Shazzoo met CTA",
+      "description": "Als Shazzoo Standaard, met het CTA-blok onderaan.",
+      "settings": [
+        { "name": "show_page_title", "type": "toggle", "required": false, "default": false },
+        { "name": "title", "type": "text", "label": "Kop", "required": false, "default": "Een half uur kost u niets" }
+      ]
+    }
+  ]
+}
+```
+
+Use these fields to fill `template_settings` on a page, or a resource field
+of the `template_settings` type.
 
 ## Pages
 
@@ -132,7 +158,9 @@ Content-Type: application/json
 | `slug` | optional | optional | `alpha_dash`, unique per locale |
 | `translation_key` | optional | optional | UUID |
 | `is_active` | optional | optional | boolean |
-| `template_key`, `template_settings`, `seo_title`, `seo_description`, `seo`, `header` | optional | optional | |
+| `template_key` | optional | optional | a template key from `GET /templates` |
+| `template_settings` | optional | optional | object, checked against the template's settings fields |
+| `seo_title`, `seo_description`, `seo`, `header` | optional | optional | |
 | `if_updated_at` | — | optional | see [Conflicts](#conflicts) |
 
 Each block is `{ "type", "fields", "uuid"? }`. Keep the `uuid` from a read to
@@ -147,6 +175,11 @@ are checked against the block catalog:
 - `repeater` items are checked against the repeater's own fields
 
 Fields you leave out get the block's default value.
+
+`template_settings` is checked the same way against the settings fields of
+the page's template: the `template_key` in the request, else the page's
+current template, else `default`. Settings are stored as sent; the template
+supplies its own defaults for keys that are missing.
 
 ## Plugins
 
@@ -221,6 +254,7 @@ Content-Type: application/json
 ```
 
 - `POST` returns `201` with the new record; `PUT` and `PATCH` return `200`.
+- A resource declared with `"creatable": false` returns `405` on `POST`.
 - `POST` and `PUT` need every required field without a default. `PATCH` only
   checks the fields you send.
 - Fields you leave out on `POST` get their declared default.
@@ -263,10 +297,12 @@ A plugin exposes resources by listing them under `api_resources` in its
 | `fields` | yes | Fields the API reads and writes (see below) |
 | `label` | no | Display name; defaults to the key in headline case |
 | `order_by` | no | Column to sort lists by; defaults to the primary key |
+| `creatable` | no | `false` for a resource that can only be edited, such as a settings row. Defaults to `true` |
 
 Each field has a `name` (the model attribute) and a `type`. Optional keys:
 `required`, `default`, `unique` (unique in the model's table), `options` and
-`multiple` for selects, and `max` for text.
+`multiple` for selects, `max` for text, and `template_from` for template
+settings.
 
 | Type | Accepts |
 | --- | --- |
@@ -280,9 +316,12 @@ Each field has a `name` (the model attribute) and a `type`. Optional keys:
 | `repeater` | list of objects |
 | `json` | any object or list |
 | `blocks` | list of blocks, validated like page blocks and stored as page content |
+| `template` | a template key from `GET /templates` |
+| `template_settings` | object, checked against the settings of the template named in the field `template_from` (default `template_key`). Not checked while that field is empty |
 
 Declare only fields the model can store. The model needs casts for `tags`,
-`repeater`, `json` and `blocks` fields (`array`) and for toggles (`boolean`).
+`repeater`, `json`, `blocks` and `template_settings` fields (`array`) and for
+toggles (`boolean`).
 Leave out fields that should stay private, such as a form's recipient address:
 the API never reads or writes undeclared columns.
 
@@ -298,8 +337,12 @@ package:
 | --- | --- | --- |
 | `shazzoo/contact-form` | `contact_forms` | `name`, `key` (unique), `subject_prefix`, `button_label`, `success_message`, `privacy_note`, `fields` |
 | `shazzoo/employees` | `employees` | `image_id` (media), `name`, `role`, `skills` (tags) |
+| `shazzoo/strategy-engine-plugin` | `settings` | `index_template_key`, `index_template_settings`, `article_template_key`, `article_template_settings`. Edit only (`creatable: false`) |
 
-The recipient of a contact form is deliberately not exposed. A plugin that
+The recipient of a contact form is deliberately not exposed. Of the Strategy
+Engine settings only the templates are: the overview and article pages use
+the chosen template with these settings. The AI and route settings stay out
+of the API. A plugin that
 declares its own `api_resources` replaces its built-in declaration.
 
 ## Conflicts
@@ -313,7 +356,8 @@ Fetch it again and retry.
 | Status | When |
 | --- | --- |
 | `401` | Missing or wrong API key |
-| `404` | API off, unknown page, plugin, resource or record, or a resource without a table |
+| `404` | API off, unknown page, template, plugin, resource or record, or a resource without a table |
+| `405` | `POST` to a resource that cannot be created |
 | `409` | `if_updated_at` does not match |
 | `422` | Validation failed; `errors` maps each field path to its messages |
 | `429` | More than 60 requests per minute from one IP address |

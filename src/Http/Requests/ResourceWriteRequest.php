@@ -2,6 +2,7 @@
 
 namespace Shazzoo\ContentCatalogApi\Http\Requests;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -9,6 +10,8 @@ use Shazzoo\ContentCatalogApi\Support\BlockValidator;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceDefinition;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceRegistry;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceTransformer;
+use Shazzoo\ContentCatalogApi\Support\TemplateSettingsValidator;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -30,6 +33,13 @@ final class ResourceWriteRequest extends FormRequest
             (string) $this->route('plugin'),
             (string) $this->route('resource'),
         ) ?? throw new NotFoundHttpException;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->isMethod('post') && ! $this->definition()->creatable) {
+            throw new MethodNotAllowedHttpException(['GET', 'PUT', 'PATCH'], 'This resource cannot be created through the API.');
+        }
     }
 
     /**
@@ -83,6 +93,17 @@ final class ResourceWriteRequest extends FormRequest
                 if ($field['type'] === 'blocks') {
                     app(BlockValidator::class)->validate($validator, $field['name'], $this->input($field['name']));
                 }
+
+                if ($field['type'] === 'template_settings') {
+                    $keyField = $field['template_from'] ?? 'template_key';
+
+                    app(TemplateSettingsValidator::class)->validate(
+                        $validator,
+                        $field['name'],
+                        $this->input($keyField, $this->record()?->getAttribute($keyField)),
+                        $this->input($field['name']),
+                    );
+                }
             }
         }];
     }
@@ -100,7 +121,8 @@ final class ResourceWriteRequest extends FormRequest
             'toggle' => ['boolean'],
             'select' => ($field['multiple'] ?? false) ? ['array'] : [Rule::in($this->optionKeys($field))],
             'tags' => ['array'],
-            'repeater', 'json' => ['array'],
+            'repeater', 'json', 'template_settings' => ['array'],
+            'template' => app(TemplateSettingsValidator::class)->keyRules(),
             'media' => class_exists(ResourceTransformer::MEDIA_MODEL)
                 ? ['integer', Rule::exists((new (ResourceTransformer::MEDIA_MODEL))->getTable(), 'id')]
                 : ['integer'],
@@ -113,6 +135,16 @@ final class ResourceWriteRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /**
+     * The record being replaced or updated; null when creating.
+     */
+    private function record(): ?Model
+    {
+        $id = $this->route('id');
+
+        return $id === null ? null : $this->definition()->newModel()->newQuery()->find($id);
     }
 
     /**

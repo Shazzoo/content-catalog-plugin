@@ -41,6 +41,19 @@ final class BuiltInResources
                     ['name' => 'skills', 'type' => 'tags', 'required' => true],
                 ],
             ]],
+            'shazzoo/strategy-engine-plugin' => [[
+                'key' => 'settings',
+                'label' => 'Article settings',
+                'model' => 'Shazzoo\\StrategyEngine\\Models\\ContentStudioSetting',
+                // One row holds all settings; it is edited, never added.
+                'creatable' => false,
+                'fields' => [
+                    ['name' => 'index_template_key', 'type' => 'template'],
+                    ['name' => 'index_template_settings', 'type' => 'template_settings', 'template_from' => 'index_template_key'],
+                    ['name' => 'article_template_key', 'type' => 'template'],
+                    ['name' => 'article_template_settings', 'type' => 'template_settings', 'template_from' => 'article_template_key'],
+                ],
+            ]],
             default => [],
         };
     }

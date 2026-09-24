@@ -7,7 +7,8 @@ use Shazzoo\ContentStudioCore\Support\Blocks\BlockCatalog;
 
 /**
  * Validates a list of blocks against the block catalog. Used for page content
- * and for resource fields of the "blocks" type.
+ * and for resource fields of the "blocks" type. The field check is also used
+ * for template settings.
  */
 final class BlockValidator
 {
@@ -63,10 +64,13 @@ final class BlockValidator
     }
 
     /**
+     * Checks values against field definitions from the block or template
+     * catalog: unknown fields, required fields, toggles, options, repeaters.
+     *
      * @param  array<string, mixed>  $values
      * @param  array<int, array<string, mixed>>  $definitions
      */
-    private function validateFields(Validator $validator, string $path, array $values, array $definitions): void
+    public function validateFields(Validator $validator, string $path, array $values, array $definitions): void
     {
         $fields = collect($definitions)->keyBy('name');
 

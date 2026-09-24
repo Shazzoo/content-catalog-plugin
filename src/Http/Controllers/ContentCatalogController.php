@@ -16,6 +16,7 @@ use Shazzoo\ContentCatalogApi\Support\PluginCatalog;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceDefinition;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceRegistry;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceTransformer;
+use Shazzoo\ContentCatalogApi\Support\TemplateCatalog;
 use Shazzoo\ContentStudioCore\Models\Page;
 use Shazzoo\ContentStudioCore\Support\Blocks\BlockCatalog;
 
@@ -31,6 +32,7 @@ final class ContentCatalogController
         private readonly ResourceRegistry $resources,
         private readonly ResourceTransformer $records,
         private readonly WriteResource $resourceWriter,
+        private readonly TemplateCatalog $templates,
     ) {}
 
     public function handle(?string $locale, ?string $slug): JsonResponse
@@ -47,6 +49,8 @@ final class ContentCatalogController
             $path === 'api/content-catalog/blocks' => $this->blocks($request),
             $path === 'api/content-catalog/pages' => $this->pages($request),
             preg_match('#^api/content-catalog/pages/(\d+)$#', $path, $matches) === 1 => $this->showPage($request, (int) $matches[1]),
+            $path === 'api/content-catalog/templates' => $this->templates($request),
+            preg_match('#^api/content-catalog/templates/([^/]+)$#', $path, $matches) === 1 => $this->showTemplate($request, $matches[1]),
             $path === 'api/content-catalog/plugins' => $this->plugins($request),
             preg_match('#^api/content-catalog/plugins/([^/]+)$#', $path, $matches) === 1 => $this->showPlugin($request, $matches[1]),
             preg_match('#^api/content-catalog/plugins/([^/]+)/resources/([^/]+)$#', $path, $matches) === 1 => $this->resourceIndex($request, $matches[1], $matches[2]),
@@ -61,6 +65,7 @@ final class ContentCatalogController
             'blocks' => $this->blocks->toArray(),
             'pages' => $this->allPages(),
             'plugins' => $this->plugins->all(),
+            'templates' => $this->templates->all(),
         ]);
     }
 
@@ -80,6 +85,19 @@ final class ContentCatalogController
             $request,
             $this->pages->transform(Page::query()->findOrFail($page)),
         );
+    }
+
+    public function templates(Request $request): JsonResponse
+    {
+        return $this->readResponse($request, $this->templates->all());
+    }
+
+    public function showTemplate(Request $request, string $template): JsonResponse
+    {
+        $payload = collect($this->templates->all())->firstWhere('key', $template);
+        abort_if($payload === null, 404);
+
+        return $this->readResponse($request, $payload);
     }
 
     public function plugins(Request $request): JsonResponse

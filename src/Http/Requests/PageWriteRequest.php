@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use Shazzoo\ContentCatalogApi\Support\BlockValidator;
+use Shazzoo\ContentCatalogApi\Support\TemplateSettingsValidator;
 use Shazzoo\ContentStudioCore\Models\Page;
 
 abstract class PageWriteRequest extends FormRequest
@@ -32,7 +33,7 @@ abstract class PageWriteRequest extends FormRequest
             'translation_key' => ['sometimes', 'nullable', 'uuid'],
             'locale' => [$required, 'string', 'max:12'],
             'is_active' => ['sometimes', 'boolean'],
-            'template_key' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'template_key' => ['sometimes', 'nullable', 'max:255', ...app(TemplateSettingsValidator::class)->keyRules()],
             'template_settings' => ['sometimes', 'array'],
             'seo_title' => ['sometimes', 'nullable', 'string', 'max:255'],
             'seo_description' => ['sometimes', 'nullable', 'string'],
@@ -65,6 +66,14 @@ abstract class PageWriteRequest extends FormRequest
                     $validator->errors()->add('slug', 'The slug has already been taken for this locale.');
                 }
             }
+
+            app(TemplateSettingsValidator::class)->validate(
+                $validator,
+                'template_settings',
+                // A page without a template renders with "default".
+                $this->input('template_key', $page?->template_key) ?: 'default',
+                $this->input('template_settings'),
+            );
 
             app(BlockValidator::class)->validate($validator, 'blocks', $this->input('blocks'));
         }];

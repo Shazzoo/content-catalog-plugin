@@ -53,7 +53,7 @@ final class ResourceTransformer
 
             $payload[$name] = match ($field['type']) {
                 'blocks' => $this->blocks->toApi(is_array($value) ? $value : []),
-                'tags', 'repeater' => $value ?? [],
+                'tags', 'repeater', 'template_settings' => $value ?? [],
                 default => $value,
             };
 
