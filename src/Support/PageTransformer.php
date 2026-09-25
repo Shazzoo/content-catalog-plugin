@@ -6,7 +6,10 @@ use Shazzoo\ContentStudioCore\Models\Page;
 
 final class PageTransformer
 {
-    public function __construct(private readonly BlockMapper $blocks) {}
+    public function __construct(
+        private readonly BlockMapper $blocks,
+        private readonly Translations $translations,
+    ) {}
 
     /** @return array<string, mixed> */
     public function transform(Page $page): array
@@ -17,6 +20,8 @@ final class PageTransformer
             'slug' => $page->slug,
             'translation_key' => $page->translation_key,
             'locale' => $page->locale,
+            // The same page in the other languages.
+            'translations' => $this->translations->of($page, 'title'),
             'is_active' => $page->is_active,
             'template_key' => $page->template_key,
             'template_settings' => $page->template_settings ?? [],

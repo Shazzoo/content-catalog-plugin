@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Shazzoo\ContentCatalogApi\Support\BlockMapper;
+use Shazzoo\ContentCatalogApi\Support\Translations;
 
 final class ResourceTransformer
 {
@@ -71,6 +72,11 @@ final class ResourceTransformer
                     'alt' => $item->alt,
                 ] : null;
             }
+        }
+
+        // The same item in the other languages.
+        if ($definition->isTranslatable()) {
+            $payload['translations'] = app(Translations::class)->of($record, $definition->titleField() ?? 'id');
         }
 
         if ($record->usesTimestamps()) {

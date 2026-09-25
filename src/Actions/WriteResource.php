@@ -77,6 +77,11 @@ final class WriteResource
             }
         }
 
+        // Linking to another language version shares its translation key.
+        if ($definition->isTranslatable() && filled($payload['translation_of'] ?? null)) {
+            $attributes['translation_key'] = $definition->newModel()->newQuery()->findOrFail($payload['translation_of'])->getAttribute('translation_key');
+        }
+
         return $attributes;
     }
 }

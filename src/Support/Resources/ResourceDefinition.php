@@ -99,6 +99,24 @@ final class ResourceDefinition
     }
 
     /**
+     * A resource that exists per language: it has a locale and a translation
+     * key, so records in different languages can be linked as the same item.
+     */
+    public function isTranslatable(): bool
+    {
+        return in_array('locale', $this->fieldNames(), true)
+            && in_array('translation_key', $this->fieldNames(), true);
+    }
+
+    /**
+     * The field that names a record, for the list of its translations.
+     */
+    public function titleField(): ?string
+    {
+        return collect(['title', 'name'])->first(fn (string $name): bool => in_array($name, $this->fieldNames(), true));
+    }
+
+    /**
      * The field definitions as the API shows them.
      *
      * @return array<int, array<string, mixed>>

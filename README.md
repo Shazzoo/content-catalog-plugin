@@ -116,6 +116,9 @@ A page as the API returns it:
   "slug": "cases",
   "translation_key": "5b0e…",
   "locale": "nl",
+  "translations": [
+    { "id": 31, "locale": "en", "slug": "cases", "title": "Cases" }
+  ],
   "is_active": true,
   "template_key": "default",
   "template_settings": {},
@@ -153,10 +156,11 @@ Content-Type: application/json
 | Field | `POST` / `PUT` | `PATCH` | Notes |
 | --- | --- | --- | --- |
 | `title` | required | optional | max 255 |
-| `locale` | required | optional | max 12 |
+| `locale` | required | optional | one of the languages switched on in the global settings |
 | `blocks` | required | optional | replaces all blocks when sent |
-| `slug` | optional | optional | `alpha_dash`, unique per locale |
-| `translation_key` | optional | optional | UUID |
+| `slug` | optional | optional | letters, digits, `-` and `_`; `/` nests it (`products/core-cms`); unique per locale |
+| `translation_of` | optional | optional | id of the same page in another language, see [Languages](#languages) |
+| `translation_key` | optional | optional | UUID; `null` unlinks the page. Not together with `translation_of` |
 | `is_active` | optional | optional | boolean |
 | `template_key` | optional | optional | a template key from `GET /templates` |
 | `template_settings` | optional | optional | object, checked against the template's settings fields |
@@ -180,6 +184,30 @@ Fields you leave out get the block's default value.
 the page's template: the `template_key` in the request, else the page's
 current template, else `default`. Settings are stored as sent; the template
 supplies its own defaults for keys that are missing.
+
+### Languages
+
+A page exists per language. Pages in different languages are *the same page*
+when they share a `translation_key`: the language switch on the site links
+them, and they get each other as `hreflang` alternates in the page head and in
+the sitemap.
+
+Link a page by sending `translation_of` with the id of its version in another
+language; it takes over that page's `translation_key`:
+
+```http
+POST /api/content-catalog/pages
+
+{ "title": "Services", "slug": "services", "locale": "en", "translation_of": 2, "blocks": [ … ] }
+```
+
+The response lists the linked versions under `translations`. A group has one
+page per language, so a link is refused (422) when the page to link to is in
+the same language, or when its group already has a page in this language.
+Send `"translation_key": null` to unlink a page; it gets a group of its own.
+
+The sitemap is rebuilt after every page change, so a new link shows up there
+without running `app:generate-sitemap-xml`.
 
 ## Plugins
 
@@ -332,6 +360,14 @@ the API never reads or writes undeclared columns.
 A declaration with a missing key, model or field type is skipped and logged as
 a warning. Resources of inactive plugins are not available.
 
+**Languages.** A field named `locale` only accepts a language that is switched
+on in the global settings. A resource with both `locale` and `translation_key`
+fields (cases, legal documents, employees) links its records across languages
+like pages: send `translation_of` with the id of the same record in another
+language, and each record lists the others under `translations`
+(`id`, `locale`, `slug` and `title` or `name`). The same rules apply: one
+record per language in a group.
+
 ### Built-in resources
 
 Plugins released before `api_resources` existed get a declaration from this
@@ -339,8 +375,8 @@ package:
 
 | Plugin | Resource | Fields |
 | --- | --- | --- |
-| `shazzoo/contact-form` | `contact_forms` | `name`, `key` (unique), `subject_prefix`, `button_label`, `success_message`, `privacy_note`, `fields` |
-| `shazzoo/employees` | `employees` | `image_id` (media), `name`, `role`, `skills` (tags) |
+| `shazzoo/contact-form` | `contact_forms` | `name`, `key` (unique), `locale`, `subject_prefix`, `button_label`, `success_message`, `privacy_note`, `fields` |
+| `shazzoo/employees` | `employees` | `locale`, `translation_key`, `image_id` (media), `name`, `role`, `skills` (tags), `sort_order` |
 | `shazzoo/content-catalog-api` | `navigations` | `title`, `slug` (unique), `translation_key`, `locale`, `items` (json) |
 | `shazzoo/content-catalog-api` | `settings` | `settings` (json, merged, script fields hidden). Edit only |
 | `shazzoo/strategy-engine-plugin` | `settings` | `index_template_key`, `index_template_settings`, `article_template_key`, `article_template_settings`. Edit only (`creatable: false`) |

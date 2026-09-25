@@ -11,6 +11,7 @@ use Shazzoo\ContentCatalogApi\Support\Resources\ResourceDefinition;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceRegistry;
 use Shazzoo\ContentCatalogApi\Support\Resources\ResourceTransformer;
 use Shazzoo\ContentCatalogApi\Support\TemplateSettingsValidator;
+use Shazzoo\ContentCatalogApi\Support\Translations;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -71,6 +72,17 @@ final class ResourceWriteRequest extends FormRequest
             $rules += $this->nestedRules($field);
         }
 
+        // A record in a language: that language must be switched on. A record
+        // with a translation key can be linked to its version in another
+        // language by id.
+        if (in_array('locale', $definition->fieldNames(), true)) {
+            $rules['locale'][] = Rule::in(app(Translations::class)->activeLocales());
+        }
+
+        if ($definition->isTranslatable()) {
+            $rules['translation_of'] = ['sometimes', 'nullable', 'integer', 'prohibits:translation_key'];
+        }
+
         return $rules;
     }
 
@@ -81,12 +93,23 @@ final class ResourceWriteRequest extends FormRequest
     {
         return [function (Validator $validator): void {
             $definition = $this->definition();
-            $allowed = [...$definition->fieldNames(), 'if_updated_at', 'purpose'];
+            $allowed = [...$definition->fieldNames(), 'if_updated_at', 'purpose', ...($definition->isTranslatable() ? ['translation_of'] : [])];
 
             foreach (array_keys($this->all()) as $name) {
                 if (! in_array($name, $allowed, true)) {
                     $validator->errors()->add((string) $name, 'This field is not defined for the resource.');
                 }
+            }
+
+            if ($definition->isTranslatable()) {
+                $translations = app(Translations::class);
+                $record = $this->record();
+                $locale = $this->input('locale', $record?->getAttribute('locale'));
+                $translationKey = filled($this->input('translation_of'))
+                    ? $translations->keyOf($validator, $definition->model, $this->input('translation_of'), $locale)
+                    : ($this->exists('translation_key') ? $this->input('translation_key') : $record?->getAttribute('translation_key'));
+
+                $translations->validate($validator, filled($this->input('translation_of')) ? 'translation_of' : 'translation_key', $definition->model, $translationKey, $locale, $record);
             }
 
             foreach ($definition->fields as $field) {

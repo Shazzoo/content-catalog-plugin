@@ -5,7 +5,7 @@
   "license": "MIT",
   "require": {
     "php": "^8.3",
-    "shazzoo/content-studio-core": "^1.0"
+    "shazzoo/content-studio-core": "^1.2"
   },
   "autoload": {
     "psr-4": {

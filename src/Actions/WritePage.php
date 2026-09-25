@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Shazzoo\ContentCatalogApi\Support\BlockMapper;
 use Shazzoo\ContentStudioCore\Models\Page;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -60,6 +61,14 @@ final class WritePage
 
         if (array_key_exists('blocks', $payload)) {
             $attributes['content'] = $this->blocks->toContent($payload['blocks']);
+        }
+
+        // Linking to another language version shares its translation key;
+        // unlinking (null) gives the page a group of its own.
+        if (filled($payload['translation_of'] ?? null)) {
+            $attributes['translation_key'] = Page::query()->findOrFail($payload['translation_of'])->translation_key;
+        } elseif (array_key_exists('translation_key', $attributes) && blank($attributes['translation_key'])) {
+            $attributes['translation_key'] = (string) Str::uuid();
         }
 
         return $attributes;

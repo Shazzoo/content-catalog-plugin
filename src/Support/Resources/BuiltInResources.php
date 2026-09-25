@@ -22,6 +22,8 @@ final class BuiltInResources
                 'fields' => [
                     ['name' => 'name', 'type' => 'text', 'required' => true],
                     ['name' => 'key', 'type' => 'text', 'required' => true, 'unique' => true],
+                    // A form per language; there is no link between them.
+                    ['name' => 'locale', 'type' => 'text'],
                     ['name' => 'subject_prefix', 'type' => 'text'],
                     ['name' => 'button_label', 'type' => 'text'],
                     ['name' => 'success_message', 'type' => 'textarea'],
@@ -33,12 +35,15 @@ final class BuiltInResources
                 'key' => 'employees',
                 'label' => 'Employees',
                 'model' => 'Shazzoo\\Employees\\Models\\Employee',
-                'order_by' => 'name',
+                'order_by' => 'sort_order',
                 'fields' => [
+                    ['name' => 'locale', 'type' => 'text'],
+                    ['name' => 'translation_key', 'type' => 'text'],
                     ['name' => 'image_id', 'type' => 'media', 'required' => true],
                     ['name' => 'name', 'type' => 'text', 'required' => true],
                     ['name' => 'role', 'type' => 'text', 'required' => true],
                     ['name' => 'skills', 'type' => 'tags', 'required' => true],
+                    ['name' => 'sort_order', 'type' => 'number'],
                 ],
             ]],
             'shazzoo/strategy-engine-plugin' => [[
